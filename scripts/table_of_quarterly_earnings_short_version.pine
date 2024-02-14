@@ -1,0 +1,81 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © haribkurup
+// https://twitter.com/haribkurup?lang=en
+
+//@version=5
+indicator("Table Of Earnings", "Quarterly Earnings Table by @haribkurup | ", overlay = true)
+
+MAX_PERIOD = 4
+
+if(timeframe.isintraday)
+    MAX_PERIOD := 1000
+else if(timeframe.isminutes or timeframe.isseconds)
+    MAX_PERIOD := 365
+else if(timeframe.isdaily)
+    MAX_PERIOD := 270
+else if(timeframe.isweekly)
+    MAX_PERIOD := 104
+else if(timeframe.ismonthly)
+    MAX_PERIOD := 24
+else
+    MAX_PERIOD := 4
+
+
+var tablePositionHorizontal     =   input.string("Right",   "Horizontal",   options = ["Left", "Center", "Right"], group = "Table Position", inline = "One")
+var tablePositionVertical       =   input.string("Bottom",  "Vertical",     options = ["Top", "Middle", "Bottom"], group = "Table Position", inline = "One")
+
+var tableHeaderTextColor        =   input(color.black, title = "Text",          group = "Table Header Colours", inline = "Two")
+var tableHeaderBgColor          =   input(color.white, title = "Background",    group = "Table Header Colours", inline = "Two")
+
+var tableBodyTextColor          =   input(color.black, title = "Text",          group = "Table Body Colours",   inline = "Three")
+var tableBodyBgColor            =   input(color.white, title = "Background",    group = "Table Body Colours",   inline = "Three")
+
+var tableBgColor                =   color.white
+var tableFrameColor             =   color.black
+var tableFrameWidth             =   4
+var tableBorderColor            =   color.black
+var tableBorderWidth            =   2
+var one_crore                   =   10000000
+
+
+getQuarterlyFinancialsInArray(financial_id, output_array) =>
+    series_data = request.financial(syminfo.tickerid, financial_id, 'FQ', barmerge.gaps_on, ignore_invalid_symbol = true)
+    array.unshift(output_array, series_data)
+    output_array
+
+
+var dates = array.new_int(MAX_PERIOD)
+array.unshift(dates, time)
+
+var sales = array.new_float(MAX_PERIOD)
+getQuarterlyFinancialsInArray('TOTAL_REVENUE', sales)
+
+var earnings = array.new_float(MAX_PERIOD) 
+getQuarterlyFinancialsInArray('EARNINGS_PER_SHARE', earnings)
+
+var profits = array.new_float(MAX_PERIOD) 
+getQuarterlyFinancialsInArray('NET_INCOME', profits)
+
+
+var tableOfEarnings = table.new(position = str.lower(tablePositionVertical) + "_" + str.lower(tablePositionHorizontal), columns = 8, rows = MAX_PERIOD + 1, bgcolor = tableBgColor, border_width = tableBorderWidth, frame_color = tableFrameColor, frame_width = tableFrameWidth, border_color = tableBorderColor)
+
+
+if(barstate.islast)
+
+    table.cell(table_id = tableOfEarnings, column = 0, row = 0, text = "TABLE OF QUARTERLY EARNINGS ",   text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = size.small)
+    table.merge_cells(tableOfEarnings, 0, 0, 3, 0)
+
+    table.cell(table_id = tableOfEarnings, column = 0, row = 1, text = "QUARTER(S)",         text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = size.small)
+    table.cell(table_id = tableOfEarnings, column = 1, row = 1, text = "SALES (CRORES)",     text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = size.small)
+    table.cell(table_id = tableOfEarnings, column = 2, row = 1, text = "PROFIT (CRORES)",    text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = size.small)
+    table.cell(table_id = tableOfEarnings, column = 3, row = 1, text = "EPS (RUPEES)",       text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = size.small)
+
+
+    for i = 0 to (MAX_PERIOD - 2)
+        if (na(array.get(earnings, i)) or array.get(earnings, i) == array.get(earnings, i+1))
+            na
+        else
+            table.cell(table_id = tableOfEarnings, column = 0, row = i + 2, text = str.format('{0, date, MMM-yy}', array.get(dates, i)),                    text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = size.small)
+            table.cell(table_id = tableOfEarnings, column = 1, row = i + 2, text = str.tostring(array.get(sales, i)/one_crore, "#,##0.00"),                 text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = size.small)
+            table.cell(table_id = tableOfEarnings, column = 2, row = i + 2, text = str.tostring(math.round(array.get(profits, i)/one_crore), "#,##0.00"),   text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = size.small)
+            table.cell(table_id = tableOfEarnings, column = 3, row = i + 2, text = str.tostring(array.get(earnings, i), "#,##0.00"),                        text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = size.small)
