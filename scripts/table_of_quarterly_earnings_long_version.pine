@@ -1,0 +1,118 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © haribkurup
+// Twitter : @haribkurup 
+
+//@version=5
+indicator("Table Of Earnings - Long Format", "Quarterly Earnings Table - Long Format by @haribkurup", overlay = true)
+
+
+// User defined type to keep earnings info of a particular time frame together (gets fetched in different arrays)
+type EarningsInfo
+    int     date
+    float   sales
+    float   profit
+    float   eps  
+
+
+MAX_PERIOD = 300
+
+
+//@function     This one takes separate arrays of date, sales, profits and eps and returns an array of the object @EarningsInfo.
+//@param        d               array<int>                  It is an integer array containing dates.
+//@param        S               array<float>                It is a floating point array containing sales information for the current and past quarters.
+//@param        p               arary<float>                It is a floating point array containing profits information for the current and past quarters.
+//@param        e               array<float>                It is a floating point array containing eps for the current and past quarters.
+//@returns      earnings_info   array.new<EarningsInfo>     Returns an array of EarningsInfo objects that holds information of a particular quarter together.
+populateEarningsInfo(d, s, p, e) =>
+    earnings_info = array.new<EarningsInfo>(0)
+    for i = 0 to (MAX_PERIOD)
+        if not na(array.get(e, i))
+            int     _date    =   array.get(d, i)
+            float   _sale    =   array.get(s, i)
+            float   _profit  =   array.get(p, i)
+            float   _eps     =   array.get(e, i)
+            earnings_row     =   EarningsInfo.new(_date, _sale, _profit, _eps)
+            earnings_info.push(earnings_row)
+    earnings_info
+
+
+//@function     This one fetches the requested financial information in series data format and returns it in an array.
+//@param        financial_id        string          One of the valid request.financial() financial id to fetch the respective financial information (eps, revenue, etc.).
+//@param        output_array        array           Returns an array containing requested financial data.
+getQuarterlyFinancialsInArray(financial_id, output_array) =>
+    series_data = request.financial(syminfo.tickerid, financial_id, 'FQ', barmerge.gaps_on, ignore_invalid_symbol = true)
+    array.unshift(output_array, series_data)
+    output_array
+
+
+
+
+var quartersToDisplay           = input.int(4, "Quarters To Display", options = [4,8,12], group = "Configure")
+var displaySize                 = input.string("Small", "Display Size", ["Tiny", "Small", "Normal", "Large", "Huge"]) 
+
+var tablePositionHorizontal     =   input.string("Right",   "Horizontal",   options = ["Left", "Center", "Right"], group = "Table Position", inline = "One")
+var tablePositionVertical       =   input.string("Bottom",  "Vertical",     options = ["Top", "Middle", "Bottom"], group = "Table Position", inline = "One")
+
+var tableHeaderTextColor        =   input(#9f00ff, title = "Text",              group = "Table Header Colours", inline = "Two")
+var tableHeaderBgColor          =   input(color.white, title = "Background",    group = "Table Header Colours", inline = "Two")
+
+var tableBodyTextColor          =   input(#de32ae, title = "Text",              group = "Table Body Colours",   inline = "Three")
+var tableBodyBgColor            =   input(color.white, title = "Background",    group = "Table Body Colours",   inline = "Three")
+
+var tableBgColor                =   color.white
+var tableFrameColor             =   color.black
+var tableFrameWidth             =   4
+var tableBorderColor            =   color.black
+var tableBorderWidth            =   2
+
+var one_crore                   =   10000000
+
+var dates = array.new_int(MAX_PERIOD)
+array.unshift(dates, time)
+
+var sales = array.new_float(MAX_PERIOD)
+getQuarterlyFinancialsInArray('TOTAL_REVENUE', sales)
+
+var profits = array.new_float(MAX_PERIOD) 
+getQuarterlyFinancialsInArray('NET_INCOME', profits)
+
+var earnings_per_share = array.new_float(MAX_PERIOD) 
+getQuarterlyFinancialsInArray('EARNINGS_PER_SHARE', earnings_per_share)
+
+
+array<EarningsInfo> earningsInfo = populateEarningsInfo(dates, sales, profits, earnings_per_share)
+var tableOfEarnings = table.new(position = str.lower(tablePositionVertical) + "_" + str.lower(tablePositionHorizontal), columns = 8, rows = MAX_PERIOD + 1, bgcolor = tableBgColor, border_width = tableBorderWidth, frame_color = tableFrameColor, frame_width = tableFrameWidth, border_color = tableBorderColor)
+
+if(barstate.islast)
+
+    table.cell(table_id = tableOfEarnings, column = 0, row = 0, text = "TABLE OF QUARTERLY EARNINGS FOR " + str.upper(syminfo.description),   text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+    table.merge_cells(tableOfEarnings, 0, 0, 6, 0)
+
+    table.cell(table_id = tableOfEarnings, column = 0, row = 1, text = "QUARTER(S)",         text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+    table.cell(table_id = tableOfEarnings, column = 1, row = 1, text = "SALES (CRORES)",     text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+    table.cell(table_id = tableOfEarnings, column = 2, row = 1, text = "SALES (CHANGE)",     text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+    table.cell(table_id = tableOfEarnings, column = 3, row = 1, text = "PROFIT (CRORES)",    text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+    table.cell(table_id = tableOfEarnings, column = 4, row = 1, text = "PROFIT (CHANGE)",    text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+    table.cell(table_id = tableOfEarnings, column = 5, row = 1, text = "EPS (RUPEES)",       text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+    table.cell(table_id = tableOfEarnings, column = 6, row = 1, text = "EPS (CHANGE)",       text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+
+
+    if earningsInfo.size() > 0
+        quartersToDisplay := math.min(quartersToDisplay - 1, earningsInfo.size() - 1)
+        for j = 0 to quartersToDisplay
+            table.cell(table_id = tableOfEarnings, column = 0, row = j + 2, text = str.format('{0, date, MMM-yy}', earningsInfo.get(j).date),                   text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = str.lower(displaySize))
+            
+            table.cell(table_id = tableOfEarnings, column = 1, row = j + 2, text = str.tostring(earningsInfo.get(j).sales/one_crore, "#,##0.00"),               text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = str.lower(displaySize))
+            sales_change = j < (earningsInfo.size()-1) ? (earningsInfo.get(j).sales - earningsInfo.get(j+1).sales) / earningsInfo.get(j+1).sales : 0
+            table.cell(table_id = tableOfEarnings, column = 2, row = j + 2, text = str.tostring(sales_change, "#,##0.00 %"),                                    text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = str.lower(displaySize))
+            
+            table.cell(table_id = tableOfEarnings, column = 3, row = j + 2, text = str.tostring(math.round(earningsInfo.get(j).profit/one_crore), "#,##0.00"),  text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = str.lower(displaySize))
+            profit_change = j < (earningsInfo.size()-1) ? (earningsInfo.get(j).profit - earningsInfo.get(j+1).profit) / earningsInfo.get(j+1).profit : 0
+            table.cell(table_id = tableOfEarnings, column = 4, row = j + 2, text = str.tostring(profit_change, "#,##0.00 %"),                                   text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = str.lower(displaySize))
+
+            table.cell(table_id = tableOfEarnings, column = 5, row = j + 2, text = str.tostring(earningsInfo.get(j).eps, "#,##0.00"),                           text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = str.lower(displaySize))
+            eps_change = j < (earningsInfo.size()-1) ? (earningsInfo.get(j).eps - earningsInfo.get(j+1).eps) / earningsInfo.get(j+1).eps : 0 
+            table.cell(table_id = tableOfEarnings, column = 6, row = j + 2, text = str.tostring(eps_change, "#,##0.00 %"),                                      text_color = tableBodyTextColor, bgcolor = tableBodyBgColor, text_size = str.lower(displaySize))
+    else
+        table.cell(table_id = tableOfEarnings, column = 0, row = 2, text = "UH OH! EARNINGS INFORMATION IS NOT AVAILABLE FOR " + str.upper(syminfo.description),   text_color = tableHeaderTextColor, bgcolor = tableHeaderBgColor, text_size = str.lower(displaySize))
+        table.merge_cells(tableOfEarnings, 0, 2, 6, 2)
