@@ -1,0 +1,67 @@
+//@version=6
+indicator("Wick Order Indicator", overlay=true)
+
+// User input for label colors and size
+firstWickColor = input.color(color.black, "First Wick Label Color", group="Appearance")
+secondWickColor = input.color(color.black, "Second Wick Label Color", group="Appearance")
+paddingMultiplier = input.int(3, "Label Padding", minval=1, maxval=10, step=1, group="Appearance")
+labelSize = input.string("normal", "Label Size", options=["tiny", "small", "normal", "large"], group="Appearance")
+
+// Convert string size selection to the label.size_xxx constant
+getLabelSize(sizeStr) =>
+    switch sizeStr
+        "tiny" => size.tiny
+        "small" => size.small 
+        "large" => size.large
+        => size.normal  // Default case
+
+// Function to determine if a candle has both upper and lower wicks
+hasUpperAndLowerWicks(open, high, low, close) =>
+    bullish = close > open
+    bearish = open > close
+    
+    upperWickExists = bullish ? high > close : high > open
+    lowerWickExists = bullish ? low < open : low < close
+    
+    upperWickExists and lowerWickExists
+
+// Track price changes for each bar
+var float lastHigh = na
+var float lastLow = na
+var int highChangeBar = na
+var int lowChangeBar = na
+
+// Update our tracking variables
+if (na(lastHigh) or high != lastHigh)
+    highChangeBar := bar_index
+    lastHigh := high
+
+if (na(lastLow) or low != lastLow)
+    lowChangeBar := bar_index
+    lastLow := low
+
+// Check if the current bar has both upper and lower wicks
+hasBothWicks = hasUpperAndLowerWicks(open, high, low, close)
+
+// Calculate padding amount
+paddingMultiplier := paddingMultiplier / 10
+padding = ta.atr(14) * paddingMultiplier
+
+// Get the label size from user selection
+selectedSize = getLabelSize(labelSize)
+
+// Only proceed if we have both wicks
+if hasBothWicks
+    // Get which formed first based on our tracking
+    highFirst = highChangeBar <= lowChangeBar
+    
+    // Determine the labels and their colors
+    upperWickLabel = highFirst ? "1" : "2"
+    lowerWickLabel = highFirst ? "2" : "1"
+    
+    upperWickColor = highFirst ? firstWickColor : secondWickColor
+    lowerWickColor = highFirst ? secondWickColor : firstWickColor
+    
+    // Draw the labels on the wicks with padding
+    label.new(bar_index, high + padding, text=upperWickLabel, style=label.style_none, textcolor=upperWickColor, size=selectedSize)
+    label.new(bar_index, low - padding, text=lowerWickLabel, style=label.style_none, textcolor=lowerWickColor, size=selectedSize)
